@@ -12,6 +12,8 @@ import {
 	geminiModels,
 	geminiCliDefaultModelId,
 	geminiCliModels,
+	qwenCliDefaultModelId,
+	qwenCliModels,
 	mistralDefaultModelId,
 	mistralModels,
 	openAiModelInfoSaneDefaults,
@@ -162,6 +164,11 @@ function getSelectedModel({
 		case "gemini-cli": {
 			const id = apiConfiguration.apiModelId ?? geminiCliDefaultModelId
 			const info = geminiCliModels[id as keyof typeof geminiCliModels]
+			return { id, info }
+		}
+		case "qwen-cli": {
+			const id = apiConfiguration.apiModelId ?? qwenCliDefaultModelId
+			const info = qwenCliModels[id as keyof typeof qwenCliModels]
 			return { id, info }
 		}
 		case "deepseek": {
