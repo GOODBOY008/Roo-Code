@@ -18,6 +18,8 @@ import {
 	doubaoDefaultModelId,
 	claudeCodeDefaultModelId,
 	geminiDefaultModelId,
+	geminiCliDefaultModelId,
+	qwenCliDefaultModelId,
 	deepSeekDefaultModelId,
 	moonshotDefaultModelId,
 	mistralDefaultModelId,
@@ -65,6 +67,8 @@ import {
 	DeepSeek,
 	Doubao,
 	Gemini,
+	GeminiCli,
+	QwenCli,
 	Glama,
 	Groq,
 	HuggingFace,
@@ -302,6 +306,8 @@ const ApiOptions = ({
 				"claude-code": { field: "apiModelId", default: claudeCodeDefaultModelId },
 				"openai-native": { field: "apiModelId", default: openAiNativeDefaultModelId },
 				gemini: { field: "apiModelId", default: geminiDefaultModelId },
+				"gemini-cli": { field: "apiModelId", default: geminiCliDefaultModelId },
+				"qwen-cli": { field: "apiModelId", default: qwenCliDefaultModelId },
 				deepseek: { field: "apiModelId", default: deepSeekDefaultModelId },
 				doubao: { field: "apiModelId", default: doubaoDefaultModelId },
 				moonshot: { field: "apiModelId", default: moonshotDefaultModelId },
@@ -476,6 +482,14 @@ const ApiOptions = ({
 					setApiConfigurationField={setApiConfigurationField}
 					fromWelcomeView={fromWelcomeView}
 				/>
+			)}
+
+			{selectedProvider === "gemini-cli" && (
+				<GeminiCli apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+			)}
+
+			{selectedProvider === "qwen-cli" && (
+				<QwenCli apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
 			)}
 
 			{selectedProvider === "openai" && (

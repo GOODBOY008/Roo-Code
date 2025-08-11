@@ -25,6 +25,7 @@ export const providerNames = [
 	"lmstudio",
 	"gemini",
 	"gemini-cli",
+	"qwen-cli",
 	"openai-native",
 	"mistral",
 	"moonshot",
@@ -191,6 +192,10 @@ const geminiCliSchema = apiModelIdProviderModelSchema.extend({
 	geminiCliProjectId: z.string().optional(),
 })
 
+const qwenCliSchema = apiModelIdProviderModelSchema.extend({
+	qwenCliOAuthPath: z.string().optional(),
+})
+
 const openAiNativeSchema = apiModelIdProviderModelSchema.extend({
 	openAiNativeApiKey: z.string().optional(),
 	openAiNativeBaseUrl: z.string().optional(),
@@ -293,6 +298,7 @@ export const providerSettingsSchemaDiscriminated = z.discriminatedUnion("apiProv
 	lmStudioSchema.merge(z.object({ apiProvider: z.literal("lmstudio") })),
 	geminiSchema.merge(z.object({ apiProvider: z.literal("gemini") })),
 	geminiCliSchema.merge(z.object({ apiProvider: z.literal("gemini-cli") })),
+	qwenCliSchema.merge(z.object({ apiProvider: z.literal("qwen-cli") })),
 	openAiNativeSchema.merge(z.object({ apiProvider: z.literal("openai-native") })),
 	mistralSchema.merge(z.object({ apiProvider: z.literal("mistral") })),
 	deepSeekSchema.merge(z.object({ apiProvider: z.literal("deepseek") })),
@@ -328,6 +334,7 @@ export const providerSettingsSchema = z.object({
 	...lmStudioSchema.shape,
 	...geminiSchema.shape,
 	...geminiCliSchema.shape,
+	...qwenCliSchema.shape,
 	...openAiNativeSchema.shape,
 	...mistralSchema.shape,
 	...deepSeekSchema.shape,

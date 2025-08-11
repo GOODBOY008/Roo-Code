@@ -87,6 +87,16 @@
 			"apiKeyModelPlanMismatch": "API keys and subscription plans allow different models. Make sure the selected model is included in your plan.",
 			"notFound": "Claude Code executable '{{claudePath}}' not found.\n\nPlease install Claude Code CLI:\n1. Visit {{installationUrl}} to download Claude Code\n2. Follow the installation instructions for your operating system\n3. Ensure the 'claude' command is available in your PATH\n4. Alternatively, configure a custom path in Roo settings under 'Claude Code Path'\n\nOriginal error: {{originalError}}"
 		},
+        "geminiCli": {
+          "oauthLoadFailed": "Failed to load OAuth credentials. Please authenticate first: {{error}}",
+          "tokenRefreshFailed": "Failed to refresh OAuth token: {{error}}",
+          "onboardingTimeout": "Onboarding operation timed out after 60 seconds. Please try again later.",
+          "projectDiscoveryFailed": "Could not discover project ID. Make sure you're authenticated with 'gemini auth'.",
+          "rateLimitExceeded": "Rate limit exceeded. Free tier limits have been reached.",
+          "badRequest": "Bad request: {{details}}",
+          "apiError": "Gemini CLI API error: {{error}}",
+          "completionError": "Gemini CLI completion error: {{error}}"
+        },
 		"gemini": {
 			"generate_stream": "Gemini generate context stream error: {{error}}",
 			"generate_complete_prompt": "Gemini completion error: {{error}}",

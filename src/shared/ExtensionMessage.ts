@@ -75,6 +75,7 @@ export interface ExtensionMessage {
 		| "routerModels"
 		| "openAiModels"
 		| "ollamaModels"
+		| "qwenCliModels"
 		| "lmStudioModels"
 		| "vsCodeLmModels"
 		| "huggingFaceModels"
@@ -147,6 +148,7 @@ export interface ExtensionMessage {
 	routerModels?: RouterModels
 	openAiModels?: string[]
 	ollamaModels?: string[]
+	qwenCliModels?: string[]
 	lmStudioModels?: ModelRecord
 	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	huggingFaceModels?: Array<{
