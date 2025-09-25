@@ -1,4 +1,4 @@
-import { OrganizationAllowList, ProviderSettings } from "@roo-code/types"
+import type { ProviderSettings, OrganizationAllowList } from "@roo-code/types"
 
 export class ProfileValidator {
 	public static isProfileAllowed(profile: ProviderSettings, allowList: OrganizationAllowList): boolean {
@@ -69,6 +69,7 @@ export class ProfileValidator {
 			case "sambanova":
 			case "chutes":
 			case "fireworks":
+			case "featherless":
 				return profile.apiModelId
 			case "litellm":
 				return profile.litellmModelId
@@ -87,6 +88,10 @@ export class ProfileValidator {
 				return profile.ollamaModelId
 			case "requesty":
 				return profile.requestyModelId
+			case "io-intelligence":
+				return profile.ioIntelligenceModelId
+			case "deepinfra":
+				return profile.deepInfraModelId
 			case "human-relay":
 			case "fake-ai":
 			default:
