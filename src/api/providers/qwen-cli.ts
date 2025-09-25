@@ -23,6 +23,9 @@ const QWEN_DIR = ".qwen"
 const QWEN_CREDENTIAL_FILENAME = "oauth_creds.json"
 const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
+// Token refresh configuration
+const TOKEN_REFRESH_BUFFER_MS = 30 * 1000 // 30 seconds
+
 interface QwenOAuthCredentials {
 	access_token?: string
 	refresh_token?: string
@@ -66,23 +69,26 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 	protected options: ApiHandlerOptions
 	private credentials: QwenOAuthCredentials | null = null
 	private baseUrl = DEFAULT_QWEN_BASE_URL
+	private refreshPromise: Promise<QwenOAuthCredentials> | null = null
 
 	constructor(options: ApiHandlerOptions) {
 		super()
 		this.options = options
 	}
 
-	private async loadQwenCredentials(): Promise<void> {
+	private async loadQwenCredentials(): Promise<QwenOAuthCredentials> {
 		try {
 			const credPath =
 				this.options.qwenCliOAuthPath || path.join(os.homedir(), QWEN_DIR, QWEN_CREDENTIAL_FILENAME)
 			const credData = await fs.readFile(credPath, "utf-8")
-			this.credentials = JSON.parse(credData)
+			const credentials = JSON.parse(credData) as QwenOAuthCredentials
 
 			// Update base URL if resource_url is provided
-			if (this.credentials?.resource_url) {
-				this.baseUrl = this.normalizeEndpoint(this.credentials.resource_url)
+			if (credentials?.resource_url) {
+				this.baseUrl = this.getCurrentEndpoint(credentials.resource_url)
 			}
+
+			return credentials
 		} catch (error) {
 			throw new Error(t("common:errors.geminiCli.oauthLoadFailed", { error }))
 		}
@@ -90,17 +96,35 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 
 	private async ensureAuthenticated(): Promise<void> {
 		if (!this.credentials) {
-			await this.loadQwenCredentials()
+			this.credentials = await this.loadQwenCredentials()
 		}
 
 		// Check if token needs refresh (30 second buffer)
-		if (this.credentials?.expiry_date && this.credentials.expiry_date < Date.now() + 30000) {
-			await this.refreshToken()
+		if (this.credentials?.expiry_date && this.credentials.expiry_date < Date.now() + TOKEN_REFRESH_BUFFER_MS) {
+			this.credentials = await this.refreshAccessToken(this.credentials)
 		}
 	}
 
-	private async refreshToken(): Promise<void> {
-		if (!this.credentials?.refresh_token) {
+	private async refreshAccessToken(credentials: QwenOAuthCredentials): Promise<QwenOAuthCredentials> {
+		// If a refresh is already in progress, return the existing promise
+		if (this.refreshPromise) {
+			return this.refreshPromise
+		}
+
+		// Create a new refresh promise
+		this.refreshPromise = this.doRefreshAccessToken(credentials)
+
+		try {
+			const result = await this.refreshPromise
+			return result
+		} finally {
+			// Clear the promise after completion (success or failure)
+			this.refreshPromise = null
+		}
+	}
+
+	private async doRefreshAccessToken(credentials: QwenOAuthCredentials): Promise<QwenOAuthCredentials> {
+		if (!credentials.refresh_token) {
 			throw new Error(t("common:errors.geminiCli.noRefreshToken"))
 		}
 
@@ -109,7 +133,7 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 				QWEN_OAUTH_TOKEN_ENDPOINT,
 				new URLSearchParams({
 					grant_type: "refresh_token",
-					refresh_token: this.credentials.refresh_token,
+					refresh_token: credentials.refresh_token,
 					client_id: QWEN_OAUTH_CLIENT_ID,
 				}),
 				{
@@ -121,9 +145,9 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 			)
 
 			if (response.data.access_token) {
-				this.credentials = {
+				const newCredentials: QwenOAuthCredentials = {
 					access_token: response.data.access_token,
-					refresh_token: response.data.refresh_token || this.credentials.refresh_token,
+					refresh_token: response.data.refresh_token || credentials.refresh_token,
 					token_type: response.data.token_type || "Bearer",
 					expiry_date: response.data.expires_in
 						? Date.now() + response.data.expires_in * 1000
@@ -132,31 +156,53 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 				}
 
 				// Update base URL if provided
-				if (this.credentials.resource_url) {
-					this.baseUrl = this.normalizeEndpoint(this.credentials.resource_url)
+				if (newCredentials.resource_url) {
+					this.baseUrl = this.getCurrentEndpoint(newCredentials.resource_url)
 				}
 
 				// Save refreshed credentials
 				const credPath =
 					this.options.qwenCliOAuthPath || path.join(os.homedir(), QWEN_DIR, QWEN_CREDENTIAL_FILENAME)
 				await fs.mkdir(path.dirname(credPath), { recursive: true })
-				await fs.writeFile(credPath, JSON.stringify(this.credentials, null, 2))
+				await fs.writeFile(credPath, JSON.stringify(newCredentials, null, 2))
+
+				return newCredentials
 			}
+
+			throw new Error("No access token in refresh response")
 		} catch (error) {
 			throw new Error(t("common:errors.geminiCli.tokenRefreshFailed", { error }))
 		}
 	}
 
-	private normalizeEndpoint(endpoint: string): string {
+	/**
+	 * Get the current endpoint URL with proper protocol and /v1 suffix
+	 */
+	private getCurrentEndpoint(resourceUrl?: string): string {
+		const baseEndpoint = resourceUrl || DEFAULT_QWEN_BASE_URL
 		const suffix = "/v1"
-		const normalizedUrl = endpoint.startsWith("http") ? endpoint : `https://${endpoint}`
+
+		// Normalize the URL: add protocol if missing, ensure /v1 suffix
+		const normalizedUrl = baseEndpoint.startsWith("http") ? baseEndpoint : `https://${baseEndpoint}`
+
 		return normalizedUrl.endsWith(suffix) ? normalizedUrl : `${normalizedUrl}${suffix}`
 	}
 
 	/**
-	 * Call a Qwen CLI API endpoint
+	 * Call a Qwen CLI API endpoint with retry logic
 	 */
 	private async callEndpoint(
+		endpoint: string,
+		body: QwenApiRequestBody,
+		streaming: boolean = false,
+	): Promise<NodeJS.ReadableStream | QwenCompletionResponse> {
+		return this.callApiWithRetry(() => this.doCallEndpoint(endpoint, body, streaming))
+	}
+
+	/**
+	 * Internal method to make the actual API call
+	 */
+	private async doCallEndpoint(
 		endpoint: string,
 		body: QwenApiRequestBody,
 		streaming: boolean = false,
@@ -169,41 +215,69 @@ export class QwenCliHandler extends BaseProvider implements SingleCompletionHand
 
 		const url = `${this.baseUrl}/${endpoint}`
 
+		const response = await axios({
+			method: "POST",
+			url,
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.credentials.access_token}`,
+			},
+			data: JSON.stringify(body),
+			responseType: streaming ? "stream" : "json",
+		})
+
+		return response.data
+	}
+
+	/**
+	 * Execute an API call with automatic retry logic for authentication errors
+	 */
+	private async callApiWithRetry<T>(apiCall: () => Promise<T>): Promise<T> {
 		try {
-			const response = await axios({
-				method: "POST",
-				url,
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.credentials.access_token}`,
-				},
-				data: JSON.stringify(body),
-				responseType: streaming ? "stream" : "json",
-			})
-
-			return response.data
+			return await apiCall()
 		} catch (error: unknown) {
-			console.error(`[QwenCLI] Error calling ${endpoint}:`, error)
-
-			// If we get a 401, try refreshing the token once
-			if (axios.isAxiosError(error) && error.response?.status === 401) {
-				await this.refreshToken()
-				// Retry the request
-				const retryResponse = await axios({
-					method: "POST",
-					url,
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${this.credentials?.access_token}`,
-					},
-					data: JSON.stringify(body),
-					responseType: streaming ? "stream" : "json",
-				})
-				return retryResponse.data
+			// Check if this is an authentication error that we should retry
+			if (this.isAuthError(error)) {
+				// Refresh the token and retry the operation
+				if (this.credentials) {
+					this.credentials = await this.refreshAccessToken(this.credentials)
+				}
+				return await apiCall()
 			}
-
 			throw error
 		}
+	}
+
+	/**
+	 * Check if an error is related to authentication/authorization
+	 */
+	private isAuthError(error: unknown): boolean {
+		if (!error) return false
+
+		const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+
+		// Define a type for errors that might have status or code properties
+		const errorWithCode = error as {
+			status?: number | string
+			code?: number | string
+			response?: { status?: number }
+		}
+		const errorCode = errorWithCode?.status || errorWithCode?.code || errorWithCode?.response?.status
+
+		return (
+			errorCode === 401 ||
+			errorCode === 403 ||
+			errorCode === "401" ||
+			errorCode === "403" ||
+			errorMessage.includes("unauthorized") ||
+			errorMessage.includes("forbidden") ||
+			errorMessage.includes("invalid api key") ||
+			errorMessage.includes("invalid access token") ||
+			errorMessage.includes("token expired") ||
+			errorMessage.includes("authentication") ||
+			errorMessage.includes("access denied") ||
+			(errorMessage.includes("token") && errorMessage.includes("expired"))
+		)
 	}
 
 	/**

@@ -18,6 +18,7 @@ import {
 	mistralModels,
 	moonshotModels,
 	openAiNativeModels,
+	qwenCliModels,
 	qwenCodeModels,
 	rooModels,
 	sambaNovaModels,
@@ -571,6 +572,7 @@ export const modelIdKeysByProvider: Record<TypicalProvider, ModelIdKey> = {
 	deepseek: "apiModelId",
 	deepinfra: "deepInfraModelId",
 	doubao: "apiModelId",
+	"qwen-cli": "apiModelId",
 	"qwen-code": "apiModelId",
 	unbound: "unboundModelId",
 	requesty: "requestyModelId",
@@ -684,6 +686,7 @@ export const MODELS_BY_PROVIDER: Record<
 		label: "OpenAI",
 		models: Object.keys(openAiNativeModels),
 	},
+	"qwen-cli": { id: "qwen-cli", label: "Qwen CLI", models: Object.keys(qwenCliModels) },
 	"qwen-code": { id: "qwen-code", label: "Qwen Code", models: Object.keys(qwenCodeModels) },
 	roo: { id: "roo", label: "Roo", models: Object.keys(rooModels) },
 	sambanova: {
